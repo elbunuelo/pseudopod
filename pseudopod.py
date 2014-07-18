@@ -33,6 +33,7 @@ class IPodPacket(object):
         payload = 0x00
         if self.payload != None:
             payload  = self.addCharacters(self.payload)
+            print translate(self.payload)
 
         length = self.length
         if length == 0:
@@ -68,6 +69,7 @@ class IPodRemote(object):
         if wait_for_response:
             raw_response = self.serial.read(100)
             if raw_response != None and len(raw_response) != 0:
+                print(translate(raw_response))
                 response = self.parse_response(raw_response)
         return response
 
@@ -76,9 +78,9 @@ class IPodRemote(object):
         length   = ord(response[2])
         mode     = response[3]
         command  = response[4:6]
-        payload  = response[6: 4 + length]
+        payload  = response[6:-1]
         checksum = response[-1]
-        return IPodPacket(header, length, mode, command, payload, checksum)
+        return IPodPacket(mode, command, header, length, payload, checksum)
 
 
 class SimpleRemote(IPodRemote):
@@ -202,9 +204,9 @@ class AdvancedRemote(IPodRemote):
 
     def get_name(self):
         response = self.execute_command(self.get_ipod_name_command, True)
-        name = response.payload
+        name = response.payload[:-1]
         print(translate(response.checksum))
-        print(translate(response.calc_checksum())) 
+        print(translate(response.calc_checksum()))
         return name
 
 ser = serial.Serial(
