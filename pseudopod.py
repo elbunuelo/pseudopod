@@ -33,7 +33,6 @@ class IPodPacket(object):
         payload = 0x00
         if self.payload != None:
             payload  = self.addCharacters(self.payload)
-            print translate(self.payload)
 
         length = self.length
         if length == 0:
@@ -47,9 +46,12 @@ class IPodPacket(object):
     def get_text(self):
         text = self.header + self.intToHex(self.calc_length()) + self.mode + self.command
         if self.payload != None:
-            text += payload
+            text += self.payload
         text += self.calc_checksum()
         return text
+
+    def set_payload(self, payload):
+        self.payload = payload
 
     def __len__(self):
         return len(self.__str__())
@@ -57,6 +59,8 @@ class IPodPacket(object):
 
 class IPodRemote(object):
     serial = None
+
+    request_mode_command =  IPodPacket(mode='\x00', command='\x03')
 
     def __init__(self, serial):
         self.serial = serial
@@ -81,6 +85,10 @@ class IPodRemote(object):
         payload  = response[6:-1]
         checksum = response[-1]
         return IPodPacket(mode, command, header, length, payload, checksum)
+
+    def request_mode(self):
+        response = self.execute_command(self.request_mode_command, True)
+
 
 
 class SimpleRemote(IPodRemote):
@@ -194,8 +202,22 @@ class SimpleRemote(IPodRemote):
 class AdvancedRemote(IPodRemote):
 
     mode = '\x04'
-    switch_mode_command = IPodPacket(mode='\x00', command='\x01\x04')
-    get_ipod_name_command = IPodPacket(mode=mode, command='\x00\x14')
+
+    types = {
+                'playlist' : '\x01',
+                'artist'   : '\x02',
+                'album'    : '\x03',
+                'genre'    : '\x04',
+                'song'     : '\x05',
+                'composer' : '\x06'
+            }
+
+    switch_mode_command                     = IPodPacket(mode = '\x00', command = '\x01\x04')
+    get_ipod_name_command                   = IPodPacket(mode = mode, command   = '\x00\x14')
+    switch_to_main_library_playlist_command = IPodPacket(mode = mode, command   = '\x00\x15')
+    switch_to_item_number_command = IPodPacket(mode= mode, command='\x00\x17')
+    get_amount_for_type_command = IPodPacket(mode=mode, command='\x00\x18')
+
 
     def execute_command(self, command, wait_for_response=False):
         super(AdvancedRemote, self).execute_command(self.switch_mode_command)
@@ -205,9 +227,47 @@ class AdvancedRemote(IPodRemote):
     def get_name(self):
         response = self.execute_command(self.get_ipod_name_command, True)
         name = response.payload[:-1]
-        print(translate(response.checksum))
-        print(translate(response.calc_checksum()))
         return name
+
+    def switch_to_main_library_playlist(self):
+       self.execute_command(self.switch_to_main_library_playlist)
+
+    def switch_to_item(self, item_type, number):
+        command = self.switch_to_item_number_command
+        command.set_payload(self.types[item_type] + self.intToHex(number))
+        self.execute_command(command)
+
+    def switch_to_playlist(self, number):
+        self.switch_to_item('playlist', number)
+
+    def switch_to_artist(self, number):
+        self.switch_to_item('artist', number)
+
+    def switch_to_album(self, number):
+        self.switch_to_item('album', number)
+
+    def switch_to_genre(self, number):
+        self.switch_to_item('genre', number)
+
+    def switch_to_song(self, number):
+        self.switch_to_item('song', number)
+
+    def switch_to_composer(self, number):
+        self.switch_to_item('composer', number)
+
+    def get_amount_for_type(self, item_type):
+        command = self.get_amount_for_type_command
+        command.set_payload(self.types[item_type])
+        raw_response = self.execute_command(command, True)
+        print translate(raw_response)
+        return self.parse_response(raw_response)
+
+
+    def get_amount_of_playlists(self):
+        response = self.get_amount_for_type('playlist')
+
+    def get_amount_of_songs(self):
+        response = self.get_amount_for_type('song')
 
 ser = serial.Serial(
     port='/dev/ttyAMA0',
@@ -220,5 +280,7 @@ ser = serial.Serial(
 
 def translate(hexadec):
     return " ".join(hex(ord(n)) for n in hexadec)
+
 remote = AdvancedRemote(ser)
-print(remote.get_name())
+#remote = SimpleRemote(ser)
+print(remote.get_amount_of_songs())
