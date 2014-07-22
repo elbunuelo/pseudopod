@@ -71,20 +71,22 @@ class IPodRemote(object):
         response = None
 
         if wait_for_response:
-            raw_response = self.serial.read(100)
-            if raw_response != None and len(raw_response) != 0:
-                print(translate(raw_response))
-                response = self.parse_response(raw_response)
+            header = self.serial.read(2)
+            if header == '\xFF\x55':
+                length   = ord(self.serial.read(1))
+                message  = self.serial.read(length)
+                checksum = self.serial.read(1)
+                print(translate(checksum))
+                mode     = message[0]
+                command  = message[1:3]
+                print(translate(command))
+                payload  = message[3:-1]
+                print(translate(payload))
+                response = IPodPacket(mode, command, header, length, payload, checksum)
+                print(translate(response.calc_checksum()))
+        if response != None and response.checksum != response.calc_checksum():
+            response = None
         return response
-
-    def parse_response(self, response):
-        header   = response[0:2]
-        length   = ord(response[2])
-        mode     = response[3]
-        command  = response[4:6]
-        payload  = response[6:-1]
-        checksum = response[-1]
-        return IPodPacket(mode, command, header, length, payload, checksum)
 
     def request_mode(self):
         response = self.execute_command(self.request_mode_command, True)
@@ -215,8 +217,10 @@ class AdvancedRemote(IPodRemote):
     switch_mode_command                     = IPodPacket(mode = '\x00', command = '\x01\x04')
     get_ipod_name_command                   = IPodPacket(mode = mode, command   = '\x00\x14')
     switch_to_main_library_playlist_command = IPodPacket(mode = mode, command   = '\x00\x15')
-    switch_to_item_number_command = IPodPacket(mode= mode, command='\x00\x17')
-    get_amount_for_type_command = IPodPacket(mode=mode, command='\x00\x18')
+    switch_to_item_number_command           = IPodPacket(mode = mode, command   = '\x00\x17')
+    get_amount_for_type_command             = IPodPacket(mode = mode, command   = '\x00\x18')
+    get_names_for_items_command             = IPodPacket(mode = mode, command   = '\x00\x1A')
+    get_time_and_status_info_command        = IPodPacket(mode = mode, command   = '\x00\x1C')
 
 
     def execute_command(self, command, wait_for_response=False):
@@ -258,16 +262,68 @@ class AdvancedRemote(IPodRemote):
     def get_amount_for_type(self, item_type):
         command = self.get_amount_for_type_command
         command.set_payload(self.types[item_type])
-        raw_response = self.execute_command(command, True)
-        print translate(raw_response)
-        return self.parse_response(raw_response)
-
+        response = self.execute_command(command, True)
+        return unpack('>i', response.payload)[0]
 
     def get_amount_of_playlists(self):
-        response = self.get_amount_for_type('playlist')
+        return self.get_amount_for_type('playlist')
+
+    def get_amount_of_artists(self):
+        return self.get_amount_for_type('artist')
+
+    def get_amount_of_albums(self):
+        return self.get_amount_for_type('album')
+
+    def get_amount_of_genres(self):
+        return self.get_amount_for_type('genre')
 
     def get_amount_of_songs(self):
-        response = self.get_amount_for_type('song')
+        return self.get_amount_for_type('song')
+
+    def get_amount_of_composers(self):
+        return self.get_amount_for_type('composer')
+
+    def get_names_for_items(self, item_type, offset, number):
+        super(AdvancedRemote, self).execute_command(self.switch_mode_command)
+        command = self.get_names_for_items_command
+        command.set_payload(self.types[item_type] + pack('>i', offset) + pack('>i',number))
+        names = []
+        for i in range(0,number):
+            response = super(AdvancedRemote, self).execute_command(command, True)
+            offset = unpack('>i', response.payload[0:4])[0]
+            name = response.payload[4:]
+            names.append((offset, name))
+        return names
+
+    def get_names_for_playlists(self, offset, number):
+        return self.get_names_for_items('playlist', offset, number)
+
+    def get_names_for_artists(self, offset, number):
+        return self.get_names_for_items('artist', offset, number)
+
+    def get_names_for_albums(self, offset, number):
+        return self.get_names_for_items('album', offset, number)
+
+    def get_names_for_genres(self, offset, number):
+        return self.get_names_for_items('genre', offset, number)
+
+    def get_names_for_songs(self, offset, number):
+        return self.get_names_for_items('song', offset, number)
+
+    def get_names_for_composers(self, offset, number):
+        return self.get_names_for_items('composer', offset, number)
+
+    def get_time_and_status_info(self):
+        response = self.execute_command(self.get_time_and_status_info_command, True)
+        track_length = unpack('>i',response.payload[0:4])[0]
+        elapsed_time = unpack('>i', response.payload[4:8])[0]
+        status       = ord(response.payload[-1])
+
+        return {
+                'track_length': track_length,
+                'elapsed_time': elapsed_time,
+                'status'      : status
+               }
 
 ser = serial.Serial(
     port='/dev/ttyAMA0',
@@ -283,4 +339,4 @@ def translate(hexadec):
 
 remote = AdvancedRemote(ser)
 #remote = SimpleRemote(ser)
-print(remote.get_amount_of_songs())
+print(remote.get_time_and_status_info())
