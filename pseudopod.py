@@ -217,7 +217,7 @@ class AdvancedRemote(IPodRemote):
     get_amount_for_type_command             = IPodPacket(mode = mode, command   = '\x00\x18')
     get_names_for_items_command             = IPodPacket(mode = mode, command   = '\x00\x1A')
     get_time_and_status_info_command        = IPodPacket(mode = mode, command   = '\x00\x1C')
-
+    get_current_position_command             = IPodPacket(mode = mode, command   = '\x00\x1E')
 
     def execute_command(self, command, wait_for_response=False):
         super(AdvancedRemote, self).execute_command(self.switch_mode_command)
@@ -320,6 +320,10 @@ class AdvancedRemote(IPodRemote):
                 'elapsed_time': elapsed_time,
                 'status'      : status
                }
+    def get_current_position_in_playlist(self):
+        response = self.execute_command(self.get_current_position_command, True)
+        current_position = unpack('>i', response.payload[0:4])[0]
+        return current_position
 
 ser = serial.Serial(
     port='/dev/ttyAMA0',
@@ -335,4 +339,4 @@ def translate(hexadec):
 
 remote = AdvancedRemote(ser)
 #remote = SimpleRemote(ser)
-print(remote.get_time_and_status_info())
+print(remote.get_current_position_in_playlist())
