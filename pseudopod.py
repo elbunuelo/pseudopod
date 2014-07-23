@@ -65,27 +65,26 @@ class IPodRemote(object):
     def __init__(self, serial):
         self.serial = serial
 
-    def execute_command(self, command, wait_for_response=False):
+    def execute_command(self, command):
         self.serial.open()
         self.serial.write(command.get_text())
         response = None
 
-        if wait_for_response:
-            header = self.serial.read(2)
-            if header == '\xFF\x55':
-                length   = ord(self.serial.read(1))
-                message  = self.serial.read(length)
-                checksum = self.serial.read(1)
-                mode     = message[0]
-                command  = message[1:3]
-                payload  = message[3:]
-                response = IPodPacket(mode, command, header, length, payload, checksum)
+        header = self.serial.read(2)
+        if header == '\xFF\x55':
+            length   = ord(self.serial.read(1))
+            message  = self.serial.read(length)
+            checksum = self.serial.read(1)
+            mode     = message[0]
+            command  = message[1:3]
+            payload  = message[3:]
+            response = IPodPacket(mode, command, header, length, payload, checksum)
         if response != None and response.checksum != response.calc_checksum():
             response = None
         return response
 
     def request_mode(self):
-        response = self.execute_command(self.request_mode_command, True)
+        response = self.execute_command(self.request_mode_command)
 
 
 
@@ -117,9 +116,9 @@ class SimpleRemote(IPodRemote):
     scroll_up_command         = IPodPacket(mode=mode, command='\x00\x00\x00\x00\x01')
     scroll_down_command       = IPodPacket(mode=mode, command='\x00\x00\x00\x00\x02')
 
-    def execute_command(self, command, wait_for_response=False):
+    def execute_command(self, command):
         super(SimpleRemote, self).execute_command(self.switch_mode_command)
-        response = super(SimpleRemote, self).execute_command(command, wait_for_response)
+        response = super(SimpleRemote, self).execute_command(command)
         super(SimpleRemote, self).execute_command(self.button_release_command)
         return response
 
@@ -217,15 +216,16 @@ class AdvancedRemote(IPodRemote):
     get_amount_for_type_command             = IPodPacket(mode = mode, command   = '\x00\x18')
     get_names_for_items_command             = IPodPacket(mode = mode, command   = '\x00\x1A')
     get_time_and_status_info_command        = IPodPacket(mode = mode, command   = '\x00\x1C')
-    get_current_position_command             = IPodPacket(mode = mode, command   = '\x00\x1E')
+    get_current_position_command            = IPodPacket(mode = mode, command   = '\x00\x1E')
+    get_title_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x20')
 
-    def execute_command(self, command, wait_for_response=False):
+    def execute_command(self, command):
         super(AdvancedRemote, self).execute_command(self.switch_mode_command)
-        response = super(AdvancedRemote, self).execute_command(command, wait_for_response)
+        response = super(AdvancedRemote, self).execute_command(command)
         return response
 
     def get_name(self):
-        response = self.execute_command(self.get_ipod_name_command, True)
+        response = self.execute_command(self.get_ipod_name_command)
         name = response.payload[:-1]
         return name
 
@@ -234,7 +234,7 @@ class AdvancedRemote(IPodRemote):
 
     def switch_to_item(self, item_type, number):
         command = self.switch_to_item_number_command
-        command.set_payload(self.types[item_type] + self.intToHex(number))
+        command.set_payload(self.types[item_type] + pack('>i', number))
         self.execute_command(command)
 
     def switch_to_playlist(self, number):
@@ -258,7 +258,7 @@ class AdvancedRemote(IPodRemote):
     def get_amount_for_type(self, item_type):
         command = self.get_amount_for_type_command
         command.set_payload(self.types[item_type])
-        response = self.execute_command(command, True)
+        response = self.execute_command(command)
         return unpack('>i', response.payload)[0]
 
     def get_amount_of_playlists(self):
@@ -285,7 +285,7 @@ class AdvancedRemote(IPodRemote):
         command.set_payload(self.types[item_type] + pack('>i', offset) + pack('>i',number))
         names = []
         for i in range(0,number):
-            response = super(AdvancedRemote, self).execute_command(command, True)
+            response = super(AdvancedRemote, self).execute_command(command)
             offset = unpack('>i', response.payload[0:4])[0]
             name = response.payload[4:]
             names.append((offset, name))
@@ -310,7 +310,7 @@ class AdvancedRemote(IPodRemote):
         return self.get_names_for_items('composer', offset, number)
 
     def get_time_and_status_info(self):
-        response = self.execute_command(self.get_time_and_status_info_command, True)
+        response = self.execute_command(self.get_time_and_status_info_command)
         track_length = unpack('>i',response.payload[0:4])[0]
         elapsed_time = unpack('>i', response.payload[4:8])[0]
         status       = ord(response.payload[-1])
@@ -321,9 +321,15 @@ class AdvancedRemote(IPodRemote):
                 'status'      : status
                }
     def get_current_position_in_playlist(self):
-        response = self.execute_command(self.get_current_position_command, True)
+        response = self.execute_command(self.get_current_position_command)
         current_position = unpack('>i', response.payload[0:4])[0]
         return current_position
+
+    def get_title_for_song_number(self,number):
+        command = self.get_title_for_song_number_command
+        command.set_payload(pack('>i', number))
+        response = self.execute_command(command)
+        return response.payload
 
 ser = serial.Serial(
     port='/dev/ttyAMA0',
@@ -339,4 +345,5 @@ def translate(hexadec):
 
 remote = AdvancedRemote(ser)
 #remote = SimpleRemote(ser)
-print(remote.get_current_position_in_playlist())
+remote.switch_to_playlist(0)
+print(remote.get_title_for_song_number(1))
