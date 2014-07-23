@@ -37,7 +37,7 @@ class IPodPacket(object):
         length = self.length
         if length == 0:
             length = self.calc_length()
-        checksum = (0x100 - (length + self.addCharacters(self.mode) + self.addCharacters(self.command) + payload)) & 0xFF
+        checksum = (0x100 - (length + self.addCharacters(self.mode) + self.addCharacters(self.command) + payload) & 0xFF)
         return self.intToHex(checksum)
 
     def addCharacters(self, hex):
@@ -76,14 +76,10 @@ class IPodRemote(object):
                 length   = ord(self.serial.read(1))
                 message  = self.serial.read(length)
                 checksum = self.serial.read(1)
-                print(translate(checksum))
                 mode     = message[0]
                 command  = message[1:3]
-                print(translate(command))
-                payload  = message[3:-1]
-                print(translate(payload))
+                payload  = message[3:]
                 response = IPodPacket(mode, command, header, length, payload, checksum)
-                print(translate(response.calc_checksum()))
         if response != None and response.checksum != response.calc_checksum():
             response = None
         return response
