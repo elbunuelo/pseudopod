@@ -348,6 +348,20 @@ class AdvancedRemote(IPodRemote):
         command = self.get_album_for_song_number_command
         return self.get_information_for_song_number(number,command)
 
+    def set_polling_mode(self, polling_mode):
+        command = self.set_polling_mode_command
+        command.setPayload(polling_mode)
+        return self.execute_command(command)
+
+    #Untested
+    def start_polling_mode(self):
+        response = self.set_polling_mode(self, '\x01')
+        return unpack('>i', respoonse.payload)
+
+    def stop_polling_mode(self):
+        response = self.set_polling_mode(self, '\x00')
+
+
 ser = serial.Serial(
     port='/dev/ttyAMA0',
     baudrate=19200,
