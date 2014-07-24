@@ -222,6 +222,18 @@ class AdvancedRemote(IPodRemote):
                 'stop_ff_rw'   : '\x07'
             }
 
+    shuffle = {
+                'off'    : '\x00',
+                'songs'  : '\x01',
+                'albums' : '\x02'
+            }
+
+    repeat = {
+                'off'       : '\x00',
+                'one_song'  : '\x01',
+                'all_songs' : '\x02'
+            }
+
     switch_mode_command                     = IPodPacket(mode = '\x00', command = '\x01\x04')
     get_ipod_name_command                   = IPodPacket(mode = mode, command   = '\x00\x14')
     switch_to_main_library_playlist_command = IPodPacket(mode = mode, command   = '\x00\x15')
@@ -236,8 +248,11 @@ class AdvancedRemote(IPodRemote):
     set_polling_mode_command                = IPodPacket(mode = mode, command   = '\x00\x26')
     execute_playlist_switch_command         = IPodPacket(mode = mode, command   = '\x00\x28')
     execute_playback_command_command        = IPodPacket(mode = mode, command   = '\x00\x29')
+    get_shuffle_mode_command                = IPodPacket(mode = mode, command   = '\x00\x2C')
+    set_shuffle_mode_command                = IPodPacket(mode = mode, command   = '\x00\x2E')
 
     def execute_command(self, command):
+        # TODO: Switch mode only once
 #        super(AdvancedRemote, self).execute_command(self.switch_mode_command)
         response = super(AdvancedRemote, self).execute_command(command)
         return response
@@ -364,17 +379,17 @@ class AdvancedRemote(IPodRemote):
 
     def set_polling_mode(self, polling_mode):
         command = self.set_polling_mode_command
-        command.setPayload(polling_mode)
+        command.set_payload(polling_mode)
         return self.execute_command(command)
 
-    #Untested
+    # TODO: Make a thread that receives responses every 500ms
     def start_polling_mode(self):
-        response = self.set_polling_mode(self, '\x01')
-        return unpack('>i', respoonse.payload)
+        response = self.set_polling_mode('\x01')
+        return unpack('>i', response.payload)
 
     # TODO: Check response
     def stop_polling_mode(self):
-        response = self.set_polling_mode(self, '\x00')
+        response = self.set_polling_mode('\x00')
 
     ''' Executes the playlist switch made with one of the switch_to_items_command '''
     def execute_playlist_switch(self, song_number=-1):
@@ -407,6 +422,24 @@ class AdvancedRemote(IPodRemote):
 
     def stop_fast_forward_rewind(self):
         self.execute_playback_command('stop_ff_rw')
+
+    def get_shuffle_mode(self):
+        response = self.execute_command(self.get_shuffle_mode_command)
+        return response.payload
+
+    def set_shuffle_mode(self, shuffle_mode):
+        command = self.set_shuffle_mode_command
+        command.set_payload(self.shuffle[shuffle_mode])
+        self.execute_command(command)
+
+    def set_shuffle_off(self):
+        self.set_shuffle_mode('off')
+
+    def set_shuffle_songs(self):
+        self.set_shuffle_mode('songs')
+
+    def set_shuffle_albums(self):
+        self.set_shuffle_mode('albums')
 
 ser = serial.Serial(
     port='/dev/ttyAMA0',
