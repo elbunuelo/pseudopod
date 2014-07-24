@@ -222,6 +222,7 @@ class AdvancedRemote(IPodRemote):
     get_title_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x20')
     get_artist_for_song_number_command      = IPodPacket(mode = mode, command   = '\x00\x22')
     get_album_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x24')
+    set_polling_mode_command                = IPodPacket(mode = mode, command   = '\x00\x26')
 
     def execute_command(self, command):
         super(AdvancedRemote, self).execute_command(self.switch_mode_command)
