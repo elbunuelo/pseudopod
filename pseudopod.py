@@ -1,4 +1,5 @@
 from struct import pack, unpack
+from time import sleep
 import serial
 
 class IPodPacket(object):
@@ -211,6 +212,16 @@ class AdvancedRemote(IPodRemote):
                 'composer' : '\x06'
             }
 
+    playback = {
+                'play_pause'   : '\x01',
+                'stop'         : '\x02',
+                'skip_forward' : '\x03',
+                'skip_back'    : '\x04',
+                'fast_forward' : '\x05',
+                'fast_rewind'  : '\x06',
+                'stop_ff_rw'   : '\x07'
+            }
+
     switch_mode_command                     = IPodPacket(mode = '\x00', command = '\x01\x04')
     get_ipod_name_command                   = IPodPacket(mode = mode, command   = '\x00\x14')
     switch_to_main_library_playlist_command = IPodPacket(mode = mode, command   = '\x00\x15')
@@ -223,9 +234,11 @@ class AdvancedRemote(IPodRemote):
     get_artist_for_song_number_command      = IPodPacket(mode = mode, command   = '\x00\x22')
     get_album_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x24')
     set_polling_mode_command                = IPodPacket(mode = mode, command   = '\x00\x26')
+    execute_playlist_switch_command         = IPodPacket(mode = mode, command   = '\x00\x28')
+    execute_playback_command_command        = IPodPacket(mode = mode, command   = '\x00\x29')
 
     def execute_command(self, command):
-        super(AdvancedRemote, self).execute_command(self.switch_mode_command)
+#        super(AdvancedRemote, self).execute_command(self.switch_mode_command)
         response = super(AdvancedRemote, self).execute_command(command)
         return response
 
@@ -330,7 +343,7 @@ class AdvancedRemote(IPodRemote):
         current_position = unpack('>i', response.payload[0:4])[0]
         return current_position
 
-    ''' The following four methods need the ipod to be playing a set of songs 
+    ''' The following four methods need the ipod to be playing a set of songs
         in order to work '''
     def get_information_for_song_number(self, number, command):
         command.set_payload(pack('>i', number))
@@ -359,9 +372,41 @@ class AdvancedRemote(IPodRemote):
         response = self.set_polling_mode(self, '\x01')
         return unpack('>i', respoonse.payload)
 
+    # TODO: Check response
     def stop_polling_mode(self):
         response = self.set_polling_mode(self, '\x00')
 
+    ''' Executes the playlist switch made with one of the switch_to_items_command '''
+    def execute_playlist_switch(self, song_number=-1):
+        command = self.execute_playlist_switch_command
+        command.set_payload(pack('>i', song_number))
+        response = self.execute_command(command)
+
+    def execute_playback_command(self, commandName):
+        command = self.execute_playback_command_command
+        command.set_payload(self.playback[commandName])
+        self.execute_command(command)
+
+    def play_pause(self):
+        self.execute_playback_command('play_pause')
+
+    def stop(self):
+        self.execute_playback_command('stop')
+
+    def skip_forward(self):
+        self.execute_playback_command('skip_forward')
+
+    def skip_back(self):
+        self.execute_playback_command('skip_back')
+
+    def fast_forward(self):
+        self.execute_playback_command('fast_forward')
+
+    def fast_rewind(self):
+        self.execute_playback_command('fast_rewind')
+
+    def stop_fast_forward_rewind(self):
+        self.execute_playback_command('stop_ff_rw')
 
 ser = serial.Serial(
     port='/dev/ttyAMA0',
@@ -376,6 +421,3 @@ def translate(hexadec):
     return " ".join(hex(ord(n)) for n in hexadec)
 
 remote = AdvancedRemote(ser)
-#remote = SimpleRemote(ser)
-#remote.switch_to_artist(1)
-print(remote.get_album_for_song_number(230))
