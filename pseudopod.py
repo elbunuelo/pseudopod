@@ -77,7 +77,9 @@ class IPodRemote(object):
             checksum = self.serial.read(1)
             mode     = message[0]
             command  = message[1:3]
+            print translate(command)
             payload  = message[3:]
+            print translate(payload)
             response = IPodPacket(mode, command, header, length, payload, checksum)
         if response != None and response.checksum != response.calc_checksum():
             response = None
@@ -218,6 +220,8 @@ class AdvancedRemote(IPodRemote):
     get_time_and_status_info_command        = IPodPacket(mode = mode, command   = '\x00\x1C')
     get_current_position_command            = IPodPacket(mode = mode, command   = '\x00\x1E')
     get_title_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x20')
+    get_artist_for_song_number_command      = IPodPacket(mode = mode, command   = '\x00\x22')
+    get_album_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x24')
 
     def execute_command(self, command):
         super(AdvancedRemote, self).execute_command(self.switch_mode_command)
@@ -325,11 +329,24 @@ class AdvancedRemote(IPodRemote):
         current_position = unpack('>i', response.payload[0:4])[0]
         return current_position
 
-    def get_title_for_song_number(self,number):
-        command = self.get_title_for_song_number_command
+    ''' The following four methods need the ipod to be playing a set of songs 
+        in order to work '''
+    def get_information_for_song_number(self, number, command):
         command.set_payload(pack('>i', number))
         response = self.execute_command(command)
-        return response.payload
+        return response.payload[:-1]
+
+    def get_title_for_song_number(self,number):
+        command = self.get_title_for_song_number_command
+        return self.get_information_for_song_number(number,command)
+
+    def get_artist_for_song_number(self,number):
+        command = self.get_artist_for_song_number_command
+        return self.get_information_for_song_number(number,command)
+
+    def get_album_for_song_number(self, number):
+        command = self.get_album_for_song_number_command
+        return self.get_information_for_song_number(number,command)
 
 ser = serial.Serial(
     port='/dev/ttyAMA0',
@@ -345,5 +362,5 @@ def translate(hexadec):
 
 remote = AdvancedRemote(ser)
 #remote = SimpleRemote(ser)
-remote.switch_to_playlist(0)
-print(remote.get_title_for_song_number(1))
+#remote.switch_to_artist(1)
+print(remote.get_album_for_song_number(230))
