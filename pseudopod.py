@@ -19,10 +19,6 @@ class IPodPacket(object):
         self.header   = header
         self.length   = length
 
-
-    def intToHex(self, value):
-        return pack('>B', value)
-
     def calc_length(self):
         length = 0
         if self.payload != None:
@@ -39,13 +35,21 @@ class IPodPacket(object):
         if length == 0:
             length = self.calc_length()
         checksum = (0x100 - (length + self.addCharacters(self.mode) + self.addCharacters(self.command) + payload) & 0xFF)
-        return self.intToHex(checksum)
+        return pack('>B',checksum)
 
     def addCharacters(self, hex):
         return sum([ord(x) for x in hex])
 
     def get_text(self):
-        text = self.header + self.intToHex(self.calc_length()) + self.mode + self.command
+        length      = self.calc_length()
+        length_text = ''
+
+        if length < 255:
+            length_text = pack('>B', length)
+        else:
+            length_text = '\x00' + pack('>H', length)
+        text = self.header + length_text + self.mode + self.command
+
         if self.payload != None:
             text += self.payload
         text += self.calc_checksum()
@@ -61,7 +65,7 @@ class IPodPacket(object):
 class IPodRemote(object):
     serial = None
 
-    request_mode_command =  IPodPacket(mode='\x00', command='\x03')
+    request_mode_command =  IPodPacket(mode='\x00', command='\x00\x03')
 
     def __init__(self, serial):
         self.serial = serial
@@ -88,6 +92,7 @@ class IPodRemote(object):
 
     def request_mode(self):
         response = self.execute_command(self.request_mode_command)
+        return response.payload
 
 
 
@@ -234,26 +239,32 @@ class AdvancedRemote(IPodRemote):
                 'all_songs' : '\x02'
             }
 
-    switch_mode_command                     = IPodPacket(mode = '\x00', command = '\x01\x04')
-    get_ipod_name_command                   = IPodPacket(mode = mode, command   = '\x00\x14')
-    switch_to_main_library_playlist_command = IPodPacket(mode = mode, command   = '\x00\x15')
-    switch_to_item_number_command           = IPodPacket(mode = mode, command   = '\x00\x17')
-    get_amount_for_type_command             = IPodPacket(mode = mode, command   = '\x00\x18')
-    get_names_for_items_command             = IPodPacket(mode = mode, command   = '\x00\x1A')
-    get_time_and_status_info_command        = IPodPacket(mode = mode, command   = '\x00\x1C')
-    get_current_position_command            = IPodPacket(mode = mode, command   = '\x00\x1E')
-    get_title_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x20')
-    get_artist_for_song_number_command      = IPodPacket(mode = mode, command   = '\x00\x22')
-    get_album_for_song_number_command       = IPodPacket(mode = mode, command   = '\x00\x24')
-    set_polling_mode_command                = IPodPacket(mode = mode, command   = '\x00\x26')
-    execute_playlist_switch_command         = IPodPacket(mode = mode, command   = '\x00\x28')
-    execute_playback_command_command        = IPodPacket(mode = mode, command   = '\x00\x29')
-    get_shuffle_mode_command                = IPodPacket(mode = mode, command   = '\x00\x2C')
-    set_shuffle_mode_command                = IPodPacket(mode = mode, command   = '\x00\x2E')
+    switch_mode_command                             = IPodPacket(mode = '\x00', command = '\x01\x04')
+    get_ipod_name_command                           = IPodPacket(mode = mode, command   = '\x00\x14')
+    switch_to_main_library_playlist_command         = IPodPacket(mode = mode, command   = '\x00\x15')
+    switch_to_item_number_command                   = IPodPacket(mode = mode, command   = '\x00\x17')
+    get_amount_for_type_command                     = IPodPacket(mode = mode, command   = '\x00\x18')
+    get_names_for_items_command                     = IPodPacket(mode = mode, command   = '\x00\x1A')
+    get_time_and_status_info_command                = IPodPacket(mode = mode, command   = '\x00\x1C')
+    get_current_position_command                    = IPodPacket(mode = mode, command   = '\x00\x1E')
+    get_title_for_song_number_command               = IPodPacket(mode = mode, command   = '\x00\x20')
+    get_artist_for_song_number_command              = IPodPacket(mode = mode, command   = '\x00\x22')
+    get_album_for_song_number_command               = IPodPacket(mode = mode, command   = '\x00\x24')
+    set_polling_mode_command                        = IPodPacket(mode = mode, command   = '\x00\x26')
+    execute_playlist_switch_command                 = IPodPacket(mode = mode, command   = '\x00\x28')
+    execute_playback_command_command                = IPodPacket(mode = mode, command   = '\x00\x29')
+    get_shuffle_mode_command                        = IPodPacket(mode = mode, command   = '\x00\x2C')
+    set_shuffle_mode_command                        = IPodPacket(mode = mode, command   = '\x00\x2E')
+    get_repeat_mode_command                         = IPodPacket(mode = mode, command   = '\x00\x2F')
+    set_repeat_mode_command                         = IPodPacket(mode = mode, command   = '\x00\x31')
+    get_number_of_songs_in_current_playlist_command = IPodPacket(mode = mode, command   = '\x00\x35')
+    jump_to_song_number_command                     = IPodPacket(mode = mode, command   = '\x00\x37')
+    get_screen_size_command                         = IPodPacket(mode = mode, command   = '\x00\x33')
+    send_pictute_command                            = IPodPacket(mode = mode, command   = '\x00\x32')
 
     def execute_command(self, command):
         # TODO: Switch mode only once
-#        super(AdvancedRemote, self).execute_command(self.switch_mode_command)
+        super(AdvancedRemote, self).execute_command(self.switch_mode_command)
         response = super(AdvancedRemote, self).execute_command(command)
         return response
 
@@ -441,8 +452,44 @@ class AdvancedRemote(IPodRemote):
     def set_shuffle_albums(self):
         self.set_shuffle_mode('albums')
 
+    def get_repeat_mode(self):
+        response = self.execute_command(self.get_repeat_mode_command)
+        return response.payload
+
+    def set_repeat_mode(self, repeat_mode):
+        command = self.set_repeat_mode_command
+        command.set_payload(self.repeat[repeat_mode])
+        self.execute_command(command)
+
+    def set_repeat_off(self):
+        self.set_repeat_mode('off')
+
+    def set_repeat_one_song(self):
+        self.set_repeat_mode('one_song')
+
+    def set_repeat_all_songs(self):
+        self.set_repeat_mode('all_songs')
+
+    def get_number_of_songs_in_current_playlist(self):
+        response = self.execute_command(get_number_of_songs_in_current_playlist_command)
+        return unpack('>i', response.payload)[0]
+
+    def jump_to_song_number(self, number):
+        command = self.jump_to_song_number_command
+        command.set_payload(number)
+        self.execute_command(command)
+
+    def get_screen_size(self):
+        response = self.execute_command(self.get_screen_size_command)
+        return {
+                "width"  : unpack('>H', response.payload[:2])[0],
+                "height" : unpack('>H', response.payload[2:4])[0],
+                "extra"  : response.payload[-1]
+            }
+
 ser = serial.Serial(
     port='/dev/ttyAMA0',
+#    port='/dev/ttyUSB0',
     baudrate=19200,
     parity=serial.PARITY_NONE,
     stopbits=serial.STOPBITS_ONE,
@@ -453,4 +500,3 @@ ser = serial.Serial(
 def translate(hexadec):
     return " ".join(hex(ord(n)) for n in hexadec)
 
-remote = AdvancedRemote(ser)
